@@ -18,18 +18,8 @@ A testing and learning project for a graphical Xbox SFTP client with file browsi
 - [ ] Toast notifications (testing)
 - [ ] App/game listing (in progress)
 - [ ] Hydra panel integration (if available)
-- [ ] ...and more
-
-## Getting Started
-
-1. Clone the repo:
-
-   ```sh
-   git clone https://github.com/yourusername/xbox-sftp-tool.git
-   cd xbox-sftp-tool
 
 
-   Install requirements (PyQt5, paramiko, etc):
 
 
 pip install -r requirements.txt
