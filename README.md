@@ -34,3 +34,9 @@ I recommend [xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/
 1. Follow the instructions at [https://github.com/xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/durango-portal) to install and start the SFTP server on your Xbox.
 2. Take note of the Xbox’s IP address and the login credentials set for SFTP.
 3. Use those credentials in this app to connect and browse/upload/download files.
+
+## Credits
+
+Special thanks to [Tuxuser](https://github.com/tuxuser) for extensive help, support, and inspiration for this project.  
+Huge appreciation for their work in the Xbox research and homebrew community!
+
