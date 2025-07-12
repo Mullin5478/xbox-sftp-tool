@@ -26,3 +26,11 @@ pip install -r requirements.txt
 run:
 
 python main.py
+
+
+This tool requires your Xbox One to be running an SFTP server.  
+I recommend [xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/durango-portal):
+
+1. Follow the instructions at [https://github.com/xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/durango-portal) to install and start the SFTP server on your Xbox.
+2. Take note of the Xbox’s IP address and the login credentials set for SFTP.
+3. Use those credentials in this app to connect and browse/upload/download files.
