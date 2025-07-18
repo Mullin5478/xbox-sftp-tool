@@ -1,42 +1,72 @@
 # Xbox SFTP Tool
 
-A testing and learning project for a graphical Xbox SFTP client with file browsing, payload uploading, and more. **This project is a work-in-progress and not fully functional yet.**
+A testing and learning project for a graphical Xbox One SFTP client with file browsing, memory tools, payload execution, and Hydra integration.  
+This project is still a **work-in-progress**, but now includes several functional modules.
 
-## ⚠️ Disclaimer
+---
 
-**This tool is currently in early development / prototype phase.**
-- Some features may not work or are just stubs for now (UI buttons, etc).
-- Use at your own risk! Bug reports, feedback.
+## ✅ Features (Working & Planned)
 
-## Features (Planned & Partial)
+- ✅ Xbox One file browser with folder navigation  
+- ✅ Includes *auto drive scan* and *back button support*
+- ✅ SFTP connect/disconnect UI
+- ✅ File upload/download
+- ✅ Raw Hydra command interface
+- ✅ Version check (Hydra build & protocol check)
+- ✅ Integrated Hydra Control Panel (if available)
 
-- [x] Basic Xbox file browser
-- [x] File upload/download
-- [x] Connect/disconnect to SFTP server
-- [ ] Payload injection/execution (incomplete)
-- [ ] Memory dump tools (testing)
-- [ ] Toast notifications (testing)
-- [ ] App/game listing (in progress)
-- [ ] Hydra panel integration (if available)
+**Experimental / In Progress**
+- 🚧 Memory read/write (peek/poke)
+- 🚧 Toast notification support *(early test — documentation coming soon!)*
+- 🚧 Payload injection/execution
+- 🚧 App/game listing
 
+---
 
+## 🧪 What’s Next?
 
+We’re working toward a full setup experience for:
+- **Collateral Damage** (Xbox One kernel exploit)
+- **Durango SSH server** (SFTP access on Xbox)
+- One-click setup to replicate dev-like environments on retail systems
 
+The goal is to make everything easier to use, like a plug-and-play Windows setup.  
+This also includes a **full tutorial and documentation** built around all known public information to help others jump in faster.
+
+> A lot of this is developer-focused for now, and has been behind-the-scenes for a while.  
+> I’m just the middle-man trying to bring it together and **get more people involved**. This is a team effort by the community 💚
+
+---
+
+## 🔗 Links & Resources
+
+- 💥 Collateral Damage:  
+  https://github.com/exploits-forsale/collateral-damage
+
+- 🧠 LittleHydra (used in this tool):  
+  https://github.com/xboxoneresearch/LittleHydra
+
+- 🌐 Durango Portal (Xbox SFTP server):  
+  https://github.com/xboxoneresearch/durango-portal
+
+- 📢 Background info and notes:  
+  https://www.reddit.com/r/XboxRetailHomebrew/comments/1lf8ry6/findings_xbox_one_uwp_exploit_update/
+
+- 📚 Xbox One Research Docs:  
+  https://xboxoneresearch.github.io/wiki/
+
+---
+
+## 🛠 Requirements
+
+- Python 3.9+
+- Git (to clone/update)
+- Xbox One running Durango SFTP
+
+### Setup:
+
+```bash
+git clone https://github.com/Mullin5478/xbox-sftp-tool.git
+cd xbox-sftp-tool
 pip install -r requirements.txt
-run:
-
 python main.py
-
-
-This tool requires your Xbox One to be running an SFTP server.  
-I recommend [xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/durango-portal):
-
-1. Follow the instructions at [https://github.com/xboxoneresearch/durango-portal](https://github.com/xboxoneresearch/durango-portal) to install and start the SFTP server on your Xbox.
-2. Take note of the Xbox’s IP address and the login credentials set for SFTP.
-3. Use those credentials in this app to connect and browse/upload/download files.
-
-## Credits
-
-Special thanks to [Tuxuser](https://github.com/tuxuser) for extensive help, support, and inspiration for this project.  
-Huge appreciation for their work in the Xbox research and homebrew community!
-
