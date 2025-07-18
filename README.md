@@ -63,6 +63,10 @@ This also includes a **full tutorial and documentation** built around all known 
 - Git (to clone/update)
 - Xbox One running Durango SFTP
 
+🙏 Special Thanks
+Tuxuser – for their extensive work, dedication, and public contributions to the Xbox research and homebrew community.
+Much of this tool’s direction and purpose is built on foundations made possible by their insight, tools, and support.
+
 ### Setup:
 
 ```bash
@@ -70,8 +74,3 @@ git clone https://github.com/Mullin5478/xbox-sftp-tool.git
 cd xbox-sftp-tool
 pip install -r requirements.txt
 python main.py
-
-
-🙏 Special Thanks
-Tuxuser – for their extensive work, dedication, and public contributions to the Xbox research and homebrew community.
-Much of this tool’s direction and purpose is built on foundations made possible by their insight, tools, and support.
