@@ -27,7 +27,7 @@ This project is still a **work-in-progress**, but now includes several functiona
 
 We’re working toward a full setup experience for:
 - **Collateral Damage** (Xbox One kernel exploit)
-- **Durango SSH server** (SFTP access on Xbox)
+- **Durango SSH server** (SSH access on Xbox)
 - One-click setup to replicate dev-like environments on retail systems
 
 The goal is to make everything easier to use, like a plug-and-play Windows setup.  
