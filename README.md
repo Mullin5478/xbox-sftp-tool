@@ -46,7 +46,7 @@ This also includes a **full tutorial and documentation** built around all known 
 - 🧠 LittleHydra (used in this tool):  
   https://github.com/xboxoneresearch/LittleHydra
 
-- 🌐 Durango Portal (Xbox SFTP server):  
+- 🌐 Durango Portal (Xbox SSH server):  
   https://github.com/xboxoneresearch/durango-portal
 
 - 📢 Background info and notes:  
@@ -54,6 +54,9 @@ This also includes a **full tutorial and documentation** built around all known 
 
 - 📚 Xbox One Research Docs:  
   https://xboxoneresearch.github.io/wiki/
+
+  Video TUT:
+  https://www.youtube.com/watch?v=jp5I9q-TM6o
 
 ---
 
