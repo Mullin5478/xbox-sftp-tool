@@ -67,6 +67,8 @@ This also includes a **full tutorial and documentation** built around all known 
 Tuxuser – for their extensive work, dedication, and public contributions to the Xbox research and homebrew community.
 Much of this tool’s direction and purpose is built on foundations made possible by their insight, tools, and support.
 
+https://github.com/tuxuser
+
 ### Setup:
 
 ```bash
