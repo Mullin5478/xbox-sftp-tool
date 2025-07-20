@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
 from datetime import datetime
+
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTextEdit, QComboBox,
     QFileDialog, QInputDialog, QListWidget, QSizePolicy, QListWidgetItem, QStyle,
-    QMenu, QMessageBox, QApplication
+    QMenu, QMessageBox, QApplication, QProgressBar
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QTextCursor
 
 from client import XboxSFTPClient
@@ -16,6 +17,40 @@ from hydra_panel import HydraPanel
 from security_tools_panel import SecurityToolsPanel
 
 TARGET_RUN_PATH = r"U:\\Users\\UserMgr0\\AppData\\Local\\Packages\\27878ConstantineTarasenko.458004FD2C47C_c8b3w9r5va522\\LocalState\\run.exe"
+
+class DownloadWorker(QThread):
+    progress = pyqtSignal(int)
+    status = pyqtSignal(str)
+    log = pyqtSignal(str)
+    finished = pyqtSignal(bool)
+
+    def __init__(self, sftp, remote_path, save_path):
+        super().__init__()
+        self.sftp = sftp
+        self.remote_path = remote_path
+        self.save_path = save_path
+        self._success = False
+
+    def run(self):
+        try:
+            self.log.emit(f"[INFO] Starting download: {self.remote_path}")
+            self.status.emit("Downloading... 0%")
+            self.progress.emit(0)
+
+            def progress_callback(transferred, total):
+                percent = int((transferred / total) * 100) if total else 0
+                self.progress.emit(percent)
+                self.status.emit(f"Downloading... {percent}%")
+
+            self.sftp.get(self.remote_path, self.save_path, callback=progress_callback)
+            self._success = True
+            self.log.emit(f"[INFO] Downloaded {self.remote_path} to {self.save_path}")
+        except Exception as e:
+            self.log.emit(f"[ERROR] Download failed: {e}")
+            self._success = False
+        self.progress.emit(100)
+        self.status.emit("")
+        self.finished.emit(self._success)
 
 class FileExplorer(QWidget):
     def __init__(self):
@@ -131,6 +166,13 @@ class FileExplorer(QWidget):
         self.log.setReadOnly(True)
         self.log.setFixedHeight(140)
 
+        # Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setTextVisible(True)
+
         right_panel = QVBoxLayout()
         right_panel.addWidget(self.back_btn)
         right_panel.addWidget(QLabel("Current Path:"))
@@ -139,6 +181,7 @@ class FileExplorer(QWidget):
         right_panel.addWidget(self.file_tree)
         right_panel.addLayout(extra_btns)
         right_panel.addWidget(QLabel("Log Output:"))
+        right_panel.addWidget(self.progress_bar)
         right_panel.addWidget(self.log)
 
         right_widget = QWidget()
@@ -162,50 +205,11 @@ class FileExplorer(QWidget):
         main_layout.addWidget(splitter)
         self.setLayout(main_layout)
 
-    def open_security_tools_panel(self):
-        panel = SecurityToolsPanel(self, default_ip=self.host_input.text().strip())
-        panel.exec_()
-
-    def go_back(self):
-        if self.path_history:
-            prev_path = self.path_history.pop()
-            self.current_path = prev_path
-            self.path_label.setText(self.current_path)
-            self.refresh_file_tree()
-            if not self.path_history:
-                self.back_btn.setEnabled(False)
-
-    def append_log(self, message):
-        self.log.moveCursor(QTextCursor.End)
-        self.log.insertPlainText(message + '\n')
-        self.log.moveCursor(QTextCursor.End)
-
-    def open_hydra_panel(self):
-        panel = HydraPanel(self, default_ip=self.host_input.text().strip())
-        panel.exec_()
-
-    def test_xbox_toast(self):
-        message, ok = QInputDialog.getText(self, "Test Toast", "Toast message:", text="Hello from SFTP Tool!")
-        if ok and message:
-            self.send_xbox_toast(message)
-
-    def send_xbox_toast(self, message):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        try:
-            self.append_log(f"[TOAST] {message}")
-        except Exception as e:
-            self.append_log(f"[ERROR] Could not send toast: {e}")
-
-    def refresh_payloads(self):
-        self.payload_dropdown.clear()
-        if os.path.exists("payloads"):
-            for fname in os.listdir("payloads"):
-                if fname.lower().endswith(('.exe', '.bin', '.sh')):
-                    self.payload_dropdown.addItem(fname)
-
     def connect_to_xbox(self):
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setFormat("Connecting...")
+        QApplication.processEvents()
         try:
             self.client = XboxSFTPClient(
                 host=self.host_input.text().strip(),
@@ -217,6 +221,102 @@ class FileExplorer(QWidget):
             self.scan_drives()
         except Exception as e:
             self.append_log(f"[ERROR] Connection failed: {e}")
+        finally:
+            self.progress_bar.setVisible(False)
+            self.progress_bar.setMaximum(100)
+            self.progress_bar.setValue(0)
+
+    def upload_file(self):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select File to Upload")
+        if file_path:
+            try:
+                remote_path = str(Path(self.current_path) / Path(file_path).name)
+                self.progress_bar.setVisible(True)
+                self.progress_bar.setMaximum(100)
+                self.progress_bar.setValue(0)
+                self.progress_bar.setFormat("Uploading... %p%")
+                QApplication.processEvents()
+
+                def progress(transferred, total):
+                    percent = int((transferred / total) * 100) if total else 0
+                    self.progress_bar.setValue(percent)
+                    self.progress_bar.setFormat(f"Uploading... {percent}%")
+                    QApplication.processEvents()
+
+                self.client.sftp.put(file_path, remote_path, callback=progress)
+                self.append_log(f"[INFO] Uploaded {remote_path}")
+                self.refresh_file_tree()
+            except Exception as e:
+                self.append_log(f"[ERROR] Upload failed: {e}")
+            finally:
+                self.progress_bar.setVisible(False)
+                self.progress_bar.setValue(0)
+
+
+    def download_file(self, remote_path):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        save_path, _ = QFileDialog.getSaveFileName(self, "Save File As", os.path.basename(remote_path))
+        if not save_path:
+            self.append_log("[INFO] Download cancelled by user.")
+            return
+
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Downloading... 0%")
+        QApplication.processEvents()
+
+        # Start threaded download!
+        self.download_worker = DownloadWorker(self.client.sftp, remote_path, save_path)
+        self.download_worker.progress.connect(self.progress_bar.setValue)
+        self.download_worker.status.connect(self.progress_bar.setFormat)
+        self.download_worker.log.connect(self.append_log)
+        self.download_worker.finished.connect(self.download_finished)
+        self.download_worker.start()
+
+    def download_finished(self, success):
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("")
+        if success:
+            self.append_log("[INFO] Download finished successfully.")
+        else:
+            self.append_log("[ERROR] Download did not complete.")
+
+
+    def append_log(self, message):
+        self.log.moveCursor(QTextCursor.End)
+        self.log.insertPlainText(message + '\n')
+        self.log.moveCursor(QTextCursor.End)
+
+    def go_back(self):
+        if self.path_history:
+            prev_path = self.path_history.pop()
+            self.current_path = prev_path
+            self.path_label.setText(self.current_path)
+            self.refresh_file_tree()
+            if not self.path_history:
+                self.back_btn.setEnabled(False)
+
+    def refresh_payloads(self):
+        self.payload_dropdown.clear()
+        if os.path.exists("payloads"):
+            for fname in os.listdir("payloads"):
+                if fname.lower().endswith(('.exe', '.bin', '.sh')):
+                    self.payload_dropdown.addItem(fname)
+
+    def change_drive(self, item):
+        if self.current_path != item.text():
+            self.path_history.append(self.current_path)
+            self.back_btn.setEnabled(True)
+        self.current_path = item.text()
+        self.path_label.setText(self.current_path)
+        self.refresh_file_tree()
 
     def scan_drives(self):
         if not self.client:
@@ -244,14 +344,6 @@ class FileExplorer(QWidget):
                 self.refresh_file_tree()
         except Exception as e:
             self.append_log(f"[ERROR] Drive scan failed: {e}")
-
-    def change_drive(self, item):
-        if self.current_path != item.text():
-            self.path_history.append(self.current_path)
-            self.back_btn.setEnabled(True)
-        self.current_path = item.text()
-        self.path_label.setText(self.current_path)
-        self.refresh_file_tree()
 
     def refresh_file_tree(self):
         if not self.client:
@@ -291,119 +383,6 @@ class FileExplorer(QWidget):
         else:
             self.download_file(new_path)
 
-    def download_file(self, remote_path):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        save_path, _ = QFileDialog.getSaveFileName(self, "Save File As", os.path.basename(remote_path))
-        if save_path:
-            try:
-                self.client.download_file(remote_path, save_path)
-                self.append_log(f"[INFO] Downloaded {remote_path} to {save_path}")
-            except Exception as e:
-                self.append_log(f"[ERROR] Download failed: {e}")
-
-    def upload_file(self):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File to Upload")
-        if file_path:
-            try:
-                remote_path = str(Path(self.current_path) / Path(file_path).name)
-                self.client.upload_file(file_path, remote_path)
-                self.append_log(f"[INFO] Uploaded {remote_path}")
-                self.refresh_file_tree()
-            except Exception as e:
-                self.append_log(f"[ERROR] Upload failed: {e}")
-
-    def auto_inject_execute(self):
-        fname = self.payload_dropdown.currentText()
-        if not fname:
-            self.append_log("[ERROR] No payload selected.")
-            return
-        full_path = str(Path("payloads") / fname)
-        if not os.path.exists(full_path):
-            self.append_log("[ERROR] Payload file not found.")
-            return
-        try:
-            remote_path = str(Path(self.current_path) / Path(full_path).name)
-            self.client.upload_file(full_path, remote_path)
-            self.append_log(f"[INFO] Uploaded {remote_path}, executing...")
-            stdout, stderr = self.client.execute_command(remote_path)
-            if stdout:
-                self.append_log(f"[OUTPUT] {stdout}")
-            if stderr:
-                self.append_log(f"[ERROR] {stderr}")
-        except Exception as e:
-            self.append_log(f"[ERROR] Auto inject/exec failed: {e}")
-
-    def inject_and_execute_payload(self):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Payload to Upload and Execute")
-        if file_path:
-            try:
-                remote_path = str(Path(self.current_path) / Path(file_path).name)
-                self.client.upload_file(file_path, remote_path)
-                self.append_log(f"[INFO] Uploaded {remote_path}, executing...")
-                stdout, stderr = self.client.execute_command(remote_path)
-                if stdout:
-                    self.append_log(f"[OUTPUT] {stdout}")
-                if stderr:
-                    self.append_log(f"[ERROR] {stderr}")
-            except Exception as e:
-                self.append_log(f"[ERROR] Upload or Execution failed: {e}")
-
-    def dump_memory(self):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        try:
-            addr, ok1 = QInputDialog.getText(self, "Memory Address", "Enter memory address (hex):", text="0x100000")
-            size, ok2 = QInputDialog.getInt(self, "Size", "Enter number of bytes to read:", value=64)
-            if ok1 and ok2:
-                stdout, stderr = self.client.read_memory(addr, size)
-                if stdout:
-                    self.append_log(f"[MEMORY DUMP] {stdout}")
-                if stderr:
-                    self.append_log(f"[ERROR] {stderr}")
-        except Exception as e:
-            self.append_log(f"[ERROR] Memory dump failed: {e}")
-
-    def scan_game_info(self):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        try:
-            out, err = self.client.get_game_info()
-            if out:
-                self.append_log(f"[GAME INFO] {out}")
-            if err:
-                self.append_log(f"[ERROR] {err}")
-        except Exception as e:
-            self.append_log(f"[ERROR] Game scan failed: {e}")
-
-    def list_installed_apps(self):
-        if not self.client:
-            self.append_log("[ERROR] Not connected.")
-            return
-        try:
-            apps_dir = "U:\\Program Files\\WindowsApps"
-            entries = self.client.list_dir(apps_dir)
-            app_names = [entry.filename for entry in entries if entry.st_mode & 0o040000]
-            if not app_names:
-                self.append_log("[INFO] No installed apps found in WindowsApps.")
-                QMessageBox.information(self, "Installed Apps", "No installed apps found.")
-                return
-            app_list_str = "\n".join(app_names)
-            QMessageBox.information(self, "Installed Apps/Games", app_list_str)
-            self.append_log(f"[INFO] Listed {len(app_names)} installed apps/games.")
-        except Exception as e:
-            self.append_log(f"[ERROR] Could not list installed apps: {e}")
-            QMessageBox.warning(self, "Error", f"Could not list apps: {e}")
-
     def open_tree_context_menu(self, pos):
         item = self.file_tree.itemAt(pos)
         menu = QMenu()
@@ -415,6 +394,8 @@ class FileExplorer(QWidget):
             if item.text(2) == "File":
                 actions['send_run'] = menu.addAction("Send & Execute as run.exe")
         actions['new_folder'] = menu.addAction("New Folder")
+        actions['dump_drives'] = menu.addAction("Dump All Drives...")  # New feature
+
         action = menu.exec_(self.file_tree.viewport().mapToGlobal(pos))
 
         if item and action == actions.get('copy'):
@@ -490,6 +471,212 @@ class FileExplorer(QWidget):
                     self.append_log(f"[ERROR] {stderr}")
             except Exception as e:
                 self.append_log(f"[ERROR] Send & Execute failed: {e}")
+
+        if action == actions.get('dump_drives'):
+            self.dump_all_drives()
+
+    def dump_all_drives(self):
+        dest_folder = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        if not dest_folder:
+            return
+
+        drives = [self.sidebar.item(i).text() for i in range(self.sidebar.count())]
+        total_files = [0]
+        cancelled = [False]
+
+        def count_files_on_drive(remote_path):
+            count = 0
+            try:
+                entries = self.client.sftp.listdir_attr(remote_path)
+                for entry in entries:
+                    remote_item = os.path.join(remote_path, entry.filename)
+                    if entry.st_mode & 0o040000:
+                        count += count_files_on_drive(remote_item)
+                    else:
+                        count += 1
+            except Exception:
+                pass
+            return count
+
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setFormat("Counting total files...")
+        QApplication.processEvents()
+        total = 0
+        for drive in drives:
+            total += count_files_on_drive(drive)
+        if total == 0:
+            total = 1
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Dumping All Drives... %p%")
+        QApplication.processEvents()
+
+        def recursive_download(remote_path, local_path):
+            try:
+                os.makedirs(local_path, exist_ok=True)
+                entries = self.client.sftp.listdir_attr(remote_path)
+                for entry in entries:
+                    if cancelled[0]:
+                        return
+                    remote_item = os.path.join(remote_path, entry.filename)
+                    local_item = os.path.join(local_path, entry.filename)
+                    if entry.st_mode & 0o040000:
+                        recursive_download(remote_item, local_item)
+                    else:
+                        try:
+                            def progress(transferred, total_size):
+                                pass
+                            self.client.sftp.get(remote_item, local_item, callback=progress)
+                            self.append_log(f"[DUMP] {remote_item} -> {local_item}")
+                        except Exception as e:
+                            self.append_log(f"[ERROR] Failed to download {remote_item}: {e}")
+                        total_files[0] += 1
+                        self.progress_bar.setValue(total_files[0])
+                        QApplication.processEvents()
+            except Exception as e:
+                self.append_log(f"[ERROR] Failed to download folder {remote_path}: {e}")
+
+        def start_dump():
+            total_files[0] = 0
+            for drive in drives:
+                drive_name = drive.replace(':\\', '')
+                local_drive_path = os.path.join(dest_folder, drive_name)
+                self.append_log(f"[DUMP] Downloading {drive} to {local_drive_path}")
+                recursive_download(drive, local_drive_path)
+                if cancelled[0]:
+                    break
+            self.append_log("[DUMP] All drives dumped." if not cancelled[0] else "[DUMP] Dump cancelled.")
+            self.progress_bar.setVisible(False)
+            self.progress_bar.setValue(0)
+
+        import threading
+        t = threading.Thread(target=start_dump)
+        t.start()
+
+    def auto_inject_execute(self):
+        fname = self.payload_dropdown.currentText()
+        if not fname:
+            self.append_log("[ERROR] No payload selected.")
+            return
+        full_path = str(Path("payloads") / fname)
+        if not os.path.exists(full_path):
+            self.append_log("[ERROR] Payload file not found.")
+            return
+        try:
+            remote_path = str(Path(self.current_path) / Path(full_path).name)
+            self.client.upload_file(full_path, remote_path)
+            self.append_log(f"[INFO] Uploaded {remote_path}, executing...")
+            stdout, stderr = self.client.execute_command(remote_path)
+            if stdout:
+                self.append_log(f"[OUTPUT] {stdout}")
+            if stderr:
+                self.append_log(f"[ERROR] {stderr}")
+        except Exception as e:
+            self.append_log(f"[ERROR] Auto inject/exec failed: {e}")
+
+    def inject_and_execute_payload(self):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Payload to Upload and Execute")
+        if file_path:
+            try:
+                remote_path = str(Path(self.current_path) / Path(file_path).name)
+                self.progress_bar.setVisible(True)
+                self.progress_bar.setMaximum(100)
+                self.progress_bar.setValue(0)
+                self.progress_bar.setFormat("Uploading... %p%")
+                QApplication.processEvents()
+
+                def progress(transferred, total):
+                    percent = int((transferred / total) * 100) if total else 0
+                    self.progress_bar.setValue(percent)
+                    self.progress_bar.setFormat(f"Uploading... {percent}%")
+                    QApplication.processEvents()
+
+                self.client.sftp.put(file_path, remote_path, callback=progress)
+                self.append_log(f"[INFO] Uploaded {remote_path}, executing...")
+                stdout, stderr = self.client.execute_command(remote_path)
+                if stdout:
+                    self.append_log(f"[OUTPUT] {stdout}")
+                if stderr:
+                    self.append_log(f"[ERROR] {stderr}")
+            except Exception as e:
+                self.append_log(f"[ERROR] Upload or Execution failed: {e}")
+            finally:
+                self.progress_bar.setVisible(False)
+                self.progress_bar.setValue(0)
+
+    def dump_memory(self):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        try:
+            addr, ok1 = QInputDialog.getText(self, "Memory Address", "Enter memory address (hex):", text="0x100000")
+            size, ok2 = QInputDialog.getInt(self, "Size", "Enter number of bytes to read:", value=64)
+            if ok1 and ok2:
+                stdout, stderr = self.client.read_memory(addr, size)
+                if stdout:
+                    self.append_log(f"[MEMORY DUMP] {stdout}")
+                if stderr:
+                    self.append_log(f"[ERROR] {stderr}")
+        except Exception as e:
+            self.append_log(f"[ERROR] Memory dump failed: {e}")
+
+    def scan_game_info(self):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        try:
+            out, err = self.client.get_game_info()
+            if out:
+                self.append_log(f"[GAME INFO] {out}")
+            if err:
+                self.append_log(f"[ERROR] {err}")
+        except Exception as e:
+            self.append_log(f"[ERROR] Game scan failed: {e}")
+
+    def list_installed_apps(self):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        try:
+            apps_dir = "U:\\Program Files\\WindowsApps"
+            entries = self.client.list_dir(apps_dir)
+            app_names = [entry.filename for entry in entries if entry.st_mode & 0o040000]
+            if not app_names:
+                self.append_log("[INFO] No installed apps found in WindowsApps.")
+                QMessageBox.information(self, "Installed Apps", "No installed apps found.")
+                return
+            app_list_str = "\n".join(app_names)
+            QMessageBox.information(self, "Installed Apps/Games", app_list_str)
+            self.append_log(f"[INFO] Listed {len(app_names)} installed apps/games.")
+        except Exception as e:
+            self.append_log(f"[ERROR] Could not list installed apps: {e}")
+            QMessageBox.warning(self, "Error", f"Could not list apps: {e}")
+
+    def open_hydra_panel(self):
+        panel = HydraPanel(self, default_ip=self.host_input.text().strip())
+        panel.exec_()
+
+    def open_security_tools_panel(self):
+        panel = SecurityToolsPanel(self, default_ip=self.host_input.text().strip())
+        panel.exec_()
+
+    def test_xbox_toast(self):
+        message, ok = QInputDialog.getText(self, "Test Toast", "Toast message:", text="Hello from SFTP Tool!")
+        if ok and message:
+            self.send_xbox_toast(message)
+
+    def send_xbox_toast(self, message):
+        if not self.client:
+            self.append_log("[ERROR] Not connected.")
+            return
+        try:
+            self.append_log(f"[TOAST] {message}")
+        except Exception as e:
+            self.append_log(f"[ERROR] Could not send toast: {e}")
 
     def copy_folder(self, src, dst):
         try:
