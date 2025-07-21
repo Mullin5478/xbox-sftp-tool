@@ -13,9 +13,8 @@ This project is still a **work-in-progress**, but now includes several functiona
 * ✅ Raw Hydra command interface
 * ✅ Version check (Hydra build & protocol check)
 * ✅ Integrated Hydra Control Panel
-
-
-* ✅ dumping games via o drive needs more work (working but runs in main thread need moving to new thread)
+* ✅ progress bar added
+* ✅ dumping games via o drive needs more work (working but runs in main thread need moving to new thread) done but slow took 6+ hr for 43gb file likely due to the network.
 
 **Experimental / In Progress**
 
